@@ -253,6 +253,60 @@ def conf_width_XR(n, q, beta):
         alpha0 = min(1, max(h1(rho1), h2(rho1)))
         return alpha0
 
+    
+def conf_width_RZ_new(n, q, beta, sigma=-1.0):
+    """
+        Based off of Theorem 2.1 (combining CDP (BS'16) + BNSSSU'16 + RZ'16) in the paper. Currently applicable only for
+        Gaussian noise.
+        :param n: total number of samples
+        :param q: total number of queries
+        :param beta: desired significance (coverage should be at least 1-beta)
+        :param sigma: if sigma is -1, calculates width for best value of sigma. Otherwise, calculates width for given
+            sigma
+        :returns: the confidence width that is guaranteed via CDP (BS'16) + BNSSSU'16 + RZ'16 for each answer
+    """
+
+    def g3(x):  # x = rho*q*n
+        def f(y):  # y = lambda
+            return float(2 * x - np.log(1 - y)) / y
+
+        res_inn = scipy.optimize.minimize_scalar(f, bounds=(0.0, 1.0 - 10 ** (-15)), method='bounded')
+        term1 = (float(1) * res_inn.fun) / (2 * n * beta)
+        rho0 = x / (q * n)
+        if term1 >= 0:
+            return math.sqrt(term1) + 1.0 / (2 * n) * math.sqrt(math.log(4 * q / beta) / rho0)
+        else:
+            return 10 ** 16
+
+    if sigma == -1:
+        res0 = scipy.optimize.minimize_scalar(g3, bounds=(0.0, 10 ** 16), method='bounded')
+        return res0.fun
+    else:
+        rho1 = 1.0 / (2 * pow(n * sigma, 2))
+        return g3(rho1 * q * n)
+
+
+def conf_width_XR_new(n, q, beta):
+    """
+    Based off a result derived similar to the proof of Theorem 2.1 (combining CDP (BS'16) + BNSSSU'16 + XR'17) in the
+    paper. Currently applicable only for Gaussian noise.
+    :param n: total number of samples
+    :param q: total number of queries
+    :param beta: desired significance (coverage should be at least 1-beta)
+    :returns: the confidence width that is guaranteed via CDP (BS'16) + BNSSSU'16 + XR'17 for each answer
+    """
+
+    def g3(x):  # x = q n \rho'
+        term1 = (float(2) / n) * ((2 * x / beta) + math.log(4 / beta, 2))
+        rho0 = x / (q * n)
+        if term1 >= 0:
+            return math.sqrt(term1) + 1.0 / (2 * n) * math.sqrt(math.log(4 * q / beta) / rho0)
+        else:
+            return 10 ** 16
+
+    res0 = scipy.optimize.minimize_scalar(g3, bounds=(0.0, 10 ** 16), method='bounded')
+    return min(1, res0.fun)
+
 
 def bounds_Thresh(h, thresh, q, b, sigma, beta=0.0, only_last_query=False):
     """
