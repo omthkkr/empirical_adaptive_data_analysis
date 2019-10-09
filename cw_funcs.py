@@ -132,7 +132,7 @@ def conf_width_BNSSSU(n, q, beta):
     return alpha
 
 
-def conf_width_DFHPRR(n, q, beta):
+def conf_width_DFHPRR_new(n, q, beta):
     """
     Based off of Theorem 10 in DFHPPR'16. Currently applicable only for Gaussian noise.
     :param n: total number of samples
@@ -141,29 +141,18 @@ def conf_width_DFHPRR(n, q, beta):
     :returns: the confidence width that is guaranteed via DFHPRR'16 for each answer
     """
 
-    at_least = 2 * math.sqrt(48 / n * math.log(8 / beta))
-
-    def g1(rho):
-        val = 2 * math.sqrt(math.log(8 / beta) / rho) / n
-        return val
-
-    def g2(both_var):  # both_var = [rho,tau]
-        rho = both_var[0]
-        tau = both_var[1]
-        radical = rho * q * (8 * math.log(16 / beta) / tau + 1 / 2 * math.log(math.pi * rho * q))
-        if radical < 0:
-            val = 8 * (rho * q + 2 * math.sqrt(rho * q * (8 * math.log(16 / beta) / tau)))
-        else:
-            val = 8 * (rho * q + 2 * math.sqrt(radical))
-        return val
-
     def h(rho):
-        return g1(rho) - g2([rho, g1(rho)])
+        roots = np.roots([1.0, -8.0 * rho * q,
+                          16.0 * math.pow(rho * q, 2) - 64 * rho * q * math.log(math.sqrt(math.pi * rho * q)),
+                          -64.0 * rho * q * math.log(1.0/beta)])  # eqn corresponding to 2nd constraint in Theorem B.2
+        max_root = np.real(np.max(roots))
+        inn = max_root + math.sqrt(math.log(4.0 * q / beta) / rho) / (2.0 * n)
+        return inn
 
-    rho0 = scipy.optimize.brentq(h, 10 ** (-30), 1)
-    tau0 = g1(rho0)
-    tau0 = np.min([1, np.max([at_least, tau0, g2([rho0, tau0])])])
-    return tau0
+    res = scipy.optimize.minimize_scalar(h, bounds=(0.0, 10 ** (-7)), method='bounded', tol=10 ** (-10))
+    at_least = 2.0 * math.sqrt(48 / n * math.log(8 / beta))  # eqn corresponding to 1st constraint in Theorem B.2
+    ans = np.min([1, np.max([at_least, h(res.x)])])
+    return ans
 
     
 def conf_width_RZ_new(n, q, beta, sigma=-1.0):
